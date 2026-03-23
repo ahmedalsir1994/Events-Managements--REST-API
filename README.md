@@ -1,59 +1,324 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# Event Management API
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+A RESTful API built with **Laravel 12** for managing events and attendees. It supports token-based authentication, authorization policies, relationship eager-loading, email notifications, and a scheduled reminder command.
 
-## About Laravel
+---
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+## Tech Stack
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+| Layer | Technology |
+|---|---|
+| Framework | Laravel 12 (PHP 8.2+) |
+| Authentication | Laravel Sanctum (token-based) |
+| Authorization | Laravel Policies |
+| Database | MySQL |
+| Mail / Preview | SMTP → Mailpit (local dev) |
+| Notifications | Laravel Notifications (Mail channel) |
+| Scheduler | Laravel Artisan Command |
+| API Responses | Laravel API Resources |
+| Dev tooling | Laravel Pint, Pail, Sail, PHPUnit |
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+---
 
-## Learning Laravel
+## Requirements
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework. You can also check out [Laravel Learn](https://laravel.com/learn), where you will be guided through building a modern Laravel application.
+- PHP 8.2+
+- Composer
+- MySQL
+- [Mailpit](https://mailpit.axllent.org/) (for local email preview)
 
-If you don't feel like reading, [Laracasts](https://laracasts.com) can help. Laracasts contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+---
 
-## Laravel Sponsors
+## Installation
 
-We would like to extend our thanks to the following sponsors for funding Laravel development. If you are interested in becoming a sponsor, please visit the [Laravel Partners program](https://partners.laravel.com).
+```bash
+git clone <repo-url>
+cd API_event-management
 
-### Premium Partners
+composer install
 
-- **[Vehikl](https://vehikl.com)**
-- **[Tighten Co.](https://tighten.co)**
-- **[Kirschbaum Development Group](https://kirschbaumdevelopment.com)**
-- **[64 Robots](https://64robots.com)**
-- **[Curotec](https://www.curotec.com/services/technologies/laravel)**
-- **[DevSquad](https://devsquad.com/hire-laravel-developers)**
-- **[Redberry](https://redberry.international/laravel-development)**
-- **[Active Logic](https://activelogic.com)**
+cp .env.example .env
+php artisan key:generate
 
-## Contributing
+# Configure your database in .env, then:
+php artisan migrate --seed
+```
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+---
 
-## Code of Conduct
+## Environment Configuration (`.env`)
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+```env
+APP_URL=http://localhost:8000
 
-## Security Vulnerabilities
+DB_CONNECTION=mysql
+DB_HOST=127.0.0.1
+DB_PORT=3306
+DB_DATABASE=api_event_management
+DB_USERNAME=root
+DB_PASSWORD=
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+MAIL_MAILER=smtp
+MAIL_HOST=127.0.0.1
+MAIL_PORT=1025          # Mailpit SMTP port
+MAIL_FROM_ADDRESS="hello@example.com"
+MAIL_FROM_NAME="${APP_NAME}"
 
-## License
+QUEUE_CONNECTION=sync
+```
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+> View emails locally at **http://localhost:8025** (Mailpit web UI).
+
+---
+
+## Running the Application
+
+```bash
+php artisan serve
+```
+
+Or run everything together (server + queue + logs + Vite):
+
+```bash
+composer run dev
+```
+
+---
+
+## Database Schema
+
+### `users`
+| Column | Type |
+|---|---|
+| id | bigint (PK) |
+| name | string |
+| email | string (unique) |
+| password | string (hashed) |
+| timestamps | |
+
+### `events`
+| Column | Type |
+|---|---|
+| id | bigint (PK) |
+| user_id | FK → users |
+| name | string |
+| description | text (nullable) |
+| start_time | datetime |
+| end_time | datetime |
+| timestamps | |
+
+### `attendees`
+| Column | Type |
+|---|---|
+| id | bigint (PK) |
+| user_id | FK → users |
+| event_id | FK → events |
+| timestamps | |
+
+---
+
+## Authentication
+
+Authentication uses **Laravel Sanctum** (token-based).
+
+### Login
+```
+POST /api/login
+```
+**Body:**
+```json
+{
+  "email": "user@example.com",
+  "password": "password"
+}
+```
+**Response:**
+```json
+{
+  "token": "1|abc123..."
+}
+```
+
+Pass the token in subsequent requests:
+```
+Authorization: Bearer <token>
+```
+
+### Logout
+```
+POST /api/logout
+```
+Requires authentication. Deletes the current access token.
+
+---
+
+## API Endpoints
+
+### Events
+
+| Method | Endpoint | Auth Required | Description |
+|---|---|---|---|
+| GET | `/api/events` | No | List all events (paginated) |
+| GET | `/api/events/{id}` | No | Get a single event |
+| POST | `/api/events` | Yes | Create an event |
+| PUT/PATCH | `/api/events/{id}` | Yes (owner only) | Update an event |
+| DELETE | `/api/events/{id}` | Yes (owner only) | Delete an event |
+
+#### Create / Update Event — Request Body
+
+```json
+{
+  "name": "Laravel Conference",
+  "description": "Annual Laravel developer meetup",
+  "start_time": "2026-06-01 09:00:00",
+  "end_time": "2026-06-01 18:00:00"
+}
+```
+
+#### Event Resource Response
+
+```json
+{
+  "id": 1,
+  "name": "Laravel Conference",
+  "description": "Annual Laravel developer meetup",
+  "start_time": "2026-06-01T09:00:00.000000Z",
+  "end_time": "2026-06-01T18:00:00.000000Z",
+  "user_id": 1,
+  "user": { ... },
+  "attendees": [ ... ]
+}
+```
+
+---
+
+### Attendees
+
+Attendees are scoped to a parent event: `/api/events/{event}/attendees`
+
+| Method | Endpoint | Auth Required | Description |
+|---|---|---|---|
+| GET | `/api/events/{event}/attendees` | No | List attendees for an event |
+| GET | `/api/events/{event}/attendees/{id}` | No | Get a single attendee |
+| POST | `/api/events/{event}/attendees` | Yes | Register current user as attendee |
+| DELETE | `/api/events/{event}/attendees/{id}` | Yes (owner or event owner) | Remove an attendee |
+
+#### Attendee Resource Response
+
+```json
+{
+  "id": 1,
+  "user_id": 2,
+  "event_id": 1,
+  "user": { ... },
+  "created_at": "2026-03-23T10:00:00.000000Z"
+}
+```
+
+---
+
+## Eager-Loading Relationships
+
+Any endpoint that returns events or attendees supports an `include` query parameter to load relationships on demand:
+
+```
+GET /api/events?include=user,attendees
+GET /api/events?include=user,attendees,attendees.user
+GET /api/events/{event}/attendees?include=user
+```
+
+This is handled by the `CanLoadRelationships` trait, which parses the `include` parameter and calls Eloquent `with()` only for requested relations.
+
+---
+
+## Authorization Policies
+
+### `EventPolicy`
+| Action | Rule |
+|---|---|
+| `viewAny` | Public (guests allowed) |
+| `view` | Public (guests allowed) |
+| `create` | Any authenticated user |
+| `update` | Event owner only |
+| `delete` | Event owner only |
+
+### `AttendeePolicy`
+| Action | Rule |
+|---|---|
+| `create` | Any authenticated user |
+| `delete` | Attendee themselves **or** the event owner |
+
+---
+
+## Rate Limiting
+
+Write operations (`store`, `update`, `destroy`) on both events and attendees are throttled to **60 requests per minute** per user via the `throttle:60,1` middleware.
+
+---
+
+## Email Notifications & Scheduler
+
+### Reminder Notification
+
+The `EventReminderNotification` sends a mail notification to attendees of upcoming events. It uses Laravel's `MailMessage` and is dispatched via the `mail` channel.
+
+### Artisan Command
+
+```bash
+php artisan app:send-event-reminders
+```
+
+- Queries all events starting within the **next 24 hours**.
+- Notifies every attendee of each matching event via email.
+- Intended to be scheduled (e.g. run daily via `php artisan schedule:run`).
+
+---
+
+## API Resources
+
+Responses are transformed using dedicated API Resource classes to ensure a consistent JSON structure:
+
+- `EventResource` — formats event data, conditionally includes `user` and `attendees`
+- `AttendeeResource` — formats attendee data, conditionally includes `user`
+- `UserResource` — formats basic user data embedded in other resources
+
+---
+
+## Project Structure
+
+```
+app/
+├── Console/Commands/       # SendEventReminders artisan command
+├── Http/
+│   ├── Controllers/Api/    # AuthController, EventController, AttendeeController
+│   ├── Resources/          # EventResource, AttendeeResource, UserResource
+│   └── Traits/             # CanLoadRelationships trait
+├── Models/                 # User, Event, Attendee
+├── Notifications/          # EventReminderNotification
+├── Policies/               # EventPolicy, AttendeePolicy
+└── Providers/              # AuthServiceProvider (policy registration)
+database/
+├── factories/              # UserFactory, EventFactory, AttendeeFactory
+├── migrations/             # Schema definitions
+└── seeders/                # DatabaseSeeder, EventSeeder, AttendeeSeeder
+routes/
+└── api.php                 # All API route definitions
+```
+
+---
+
+## Running Tests
+
+```bash
+php artisan test
+```
+
+---
+
+## Seeding the Database
+
+```bash
+php artisan db:seed
+```
+
+This seeds users, events, and attendees with realistic fake data using Faker factories.
